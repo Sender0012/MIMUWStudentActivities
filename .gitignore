@@ -1,0 +1,70 @@
+# --- C / C++ build files ---
+*.o
+*.obj
+*.so
+*.exe
+*.out
+*.dll
+*.a
+*.lib
+*.lo
+*.la
+*.dSYM/
+*.pdb
+*.idb
+*.mod
+*.cmd
+*.exp
+*.cache
+*.tmp
+*.in
+*.out
+*.err
+*.in.*
+*.out.*
+*.err.*
+
+# --- Build directories ---
+/build/
+/dist/
+/bin/
+/Debug/
+/Release/
+
+# --- IDE / Editor settings ---
+# VSCode
+.vscode/
+
+# JetBrains IDEs (CLion, PyCharm, etc.)
+.idea/
+
+# --- Python virtual environments ---
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# --- Logs and temp files ---
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.old
+*.DS_Store
+Thumbs.db
+
+# --- Compiled Python files (if you use Python tools) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Misc ---
+
+# --- Nested Git ---
+**/.git/
+
+
+zip_tests/
