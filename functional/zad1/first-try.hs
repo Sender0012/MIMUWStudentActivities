@@ -1,7 +1,6 @@
-import Distribution.Compat.Lens (_1)
-data Expr = S | K | I | B | Expr :$ Expr | X | Z | V Int deriving(Show, Read);
+-- Jakub Senderowski IND: 459491 gr. 5
 infixl 9 :$
--- function types
+data Expr = S | K | I | B | Expr :$ Expr | X | Z | V Int deriving (Show, Read, Eq)
 
 -- tests
 test1 = S :$ K :$ K :$ X
@@ -12,7 +11,17 @@ omega = ((S :$ I) :$ I) :$ ((S :$ I) :$ I)
 kio = K :$ I :$ omega
 add = (B :$ S) :$ (B :$ B)
 
-prettyExprInside :: Expr -> Maybe Bool -> String
+-- omega-like non-terminating tests that include K and/or B
+w = S :$ I :$ I
+wK = S :$ (K :$ w) :$ I
+omegaK = wK :$ wK
+wB = S :$ (B :$ I :$ I) :$ I
+omegaB = wB :$ wB
+qKB = B :$ w :$ I :$ w
+wKB = S :$ (K :$ qKB) :$ I
+omegaKB = wKB :$ wKB
+
+prettyExprInside :: Expr -> Bool -> String
 -- operations
 prettyExprInside S _ = "S"
 prettyExprInside K _ = "K"
@@ -24,11 +33,15 @@ prettyExprInside Z _ = "z"
 prettyExprInside (V n) _ = "v" ++ show n
 
 -- Expr :$ Expr
-prettyExprInside (e1 :$ e2) is_right = (if is_right == Just True then "(" else "") ++ prettyExprInside e1 Nothing ++ " " ++ prettyExprInside e2 (Just True) ++ if is_right == Just True then ")" else ""
+prettyExprInside (e1 :$ e2) needsParens =
+        wrap needsParens (prettyExprInside e1 False ++ " " ++ prettyExprInside e2 True)
+    where
+        wrap True s = "(" ++ s ++ ")"
+        wrap False s = s
 
 -- main function for printing expresions
 prettyExpr :: Expr -> String
-prettyExpr e = prettyExprInside e  Nothing
+prettyExpr e = prettyExprInside e  False
 
 -- reduction step
 -- rstep :: Expr-> Expr
@@ -60,16 +73,23 @@ reduceDefleating (B :$ f :$ g :$ x)  b = if b then f :$ (g :$ x) else B :$ f :$ 
 reduceDefleating e b = e
 
 rstep :: Expr -> Bool -> Expr
+-- reduction rules
 rstep (S :$ f :$ g :$ x) b = (reduceDefleating f b :$ reduceDefleating x b) :$ (reduceDefleating g b :$ reduceDefleating x b)
-rstep (K :$ x :$ _) b = reduceDefleating x b
-rstep (I :$ x) b = reduceDefleating x b
-rstep (B :$ f :$ g :$ x) b = reduceDefleating f b :$ ( reduceDefleating g b :$  reduceDefleating x b)
-rstep (X :$ e) b = X :$ rstep e b
-rstep (Z :$ e) b = Z :$ rstep e b
-rstep (V n :$ e) b = V n :$ rstep e b
-rstep (e1 :$ e2) b = rstep e1 b :$  e2    -- <-- recurse into left spine
+rstep (K :$ x :$ _) b =  x
+rstep (I :$ x) b =  x
+rstep (B :$ f :$ g :$ x) b =  f :$ (  g :$   x)
+-- if the leftmost combinator was not reduced we need to check the right one
+rstep (e1 :$ e2) b = 
+    let e1' = rstep e1 b 
+    in if e1' /= e1 
+        then e1' :$ e2
+        else 
+            let e2' = rstep e2 b 
+            in e1 :$ e2' -- e1 == e1' so we can check e2
+-- if there is no reduction we return the same expression
 rstep e b = e
 
+-- function to compute the path of the reduction with a limit on the number of steps
 rpath :: Expr -> Integer -> [Expr]
 rpath e 0 = [e]
 rpath e n = e : if show e == show r then [] else rpath r (n - 1)
