@@ -1,6 +1,6 @@
 -- Jakub Senderowski IND: 459491 gr. 5
 infixl 9 :$
-data Expr = S | K | I | B | Expr :$ Expr | X | Z | V Int deriving (Show, Read, Eq)
+data Expr = S | K | I | B | Expr :$ Expr | X | Z | V Int deriving (Show, Read)
 
 -- tests
 test1 = S :$ K :$ K :$ X
@@ -13,7 +13,7 @@ add = (B :$ S) :$ (B :$ B)
 
 -- omega-like non-terminating tests that include K and/or B
 w = S :$ I :$ I
-wK = S :$ (K :$ w) :$ I
+wK = S :$ (K :$ w :$ I) :$ I
 omegaK = wK :$ wK
 wB = S :$ (B :$ I :$ I) :$ I
 omegaB = wB :$ wB
@@ -21,6 +21,8 @@ qKB = B :$ w :$ I :$ w
 wKB = S :$ (K :$ qKB) :$ I
 omegaKB = wKB :$ wKB
 
+-- pretty printing of expressions
+-- bool is needed to determine if we need to put parentheses or not
 prettyExprInside :: Expr -> Bool -> String
 -- operations
 prettyExprInside S _ = "S"
@@ -43,68 +45,51 @@ prettyExprInside (e1 :$ e2) needsParens =
 prettyExpr :: Expr -> String
 prettyExpr e = prettyExprInside e  False
 
--- reduction step
--- rstep :: Expr-> Expr
--- colection of all subexpressions that we need to check for reduction first
--- collectExpr :: Expr -> [Expr]
--- collectExpr e = case e of
---         S -> [S]
---         K -> [K]
---         I -> [I]
---         B -> [B]
---         X -> [X]
---         Z -> [Z]
---         V n -> [V n]
---         e1 :$ e2 -> collectExpr e1 ++ [e2]
-
--- -- making the reduction from the list of expressions and transforming to the expresion
--- transformExpr :: [Expr] -> [Expr]
--- transformExpr (S : e1 : e2 : e3 : rest) = [e1 :$ e3, e2 :$ e3] ++ rest
--- transformExpr (K : e1 : e2 : rest) = e1 : rest
--- transformExpr (I : e1 : rest) = e1 : rest
--- transformExpr (B : e1 : e2 : e3 : rest) = e1 : (e2 :$ e3) : rest
--- transformExpr (e : rest) = e : transformExpr rest
--- transformExpr [] = []
-
-reduceDefleating :: Expr -> Bool -> Expr
+-- reduction rules for defleating the expression before reduction
+-- True -> reduce
+-- False -> do not reduce
+reduceDefleating :: Expr -> Bool ->  Expr
 reduceDefleating (I :$ x) b = if b then x else I :$ x
 reduceDefleating (K :$ x :$ y)  b = if b then x else K :$ x :$ y
 reduceDefleating (B :$ f :$ g :$ x)  b = if b then f :$ (g :$ x) else B :$ f :$ g :$ x
 reduceDefleating e b = e
 
-rstep :: Expr -> Bool -> Expr
+-- function to compute one step of reduction
+rstep :: Expr -> Bool -> Maybe Expr
 -- reduction rules
-rstep (S :$ f :$ g :$ x) b = (reduceDefleating f b :$ reduceDefleating x b) :$ (reduceDefleating g b :$ reduceDefleating x b)
-rstep (K :$ x :$ _) b =  x
-rstep (I :$ x) b =  x
-rstep (B :$ f :$ g :$ x) b =  f :$ (  g :$   x)
+rstep (S :$ f :$ g :$ x) b = Just ((reduceDefleating f b :$ reduceDefleating x b) :$ (reduceDefleating g b :$ reduceDefleating x b))
+rstep (K :$ x :$ _) _ =  Just x
+rstep (I :$ x) _ =  Just x
+rstep (B :$ f :$ g :$ x) _ =  Just (f :$ (g :$ x))
 -- if the leftmost combinator was not reduced we need to check the right one
-rstep (e1 :$ e2) b = 
-    let e1' = rstep e1 b 
-    in if e1' /= e1 
-        then e1' :$ e2
-        else 
-            let e2' = rstep e2 b 
-            in e1 :$ e2' -- e1 == e1' so we can check e2
--- if there is no reduction we return the same expression
-rstep e b = e
+rstep (e1 :$ e2) b = case rstep e1 b of
+    Just e1' -> Just (e1' :$ e2)
+    Nothing -> case rstep e2 b of
+        Just e2' -> Just (e1 :$ e2')
+        Nothing -> Nothing
+-- if there is no reduction we inform the caller by returning Nothing
+rstep _ _ = Nothing
 
 -- function to compute the path of the reduction with a limit on the number of steps
 rpath :: Expr -> Integer -> [Expr]
 rpath e 0 = [e]
-rpath e n = e : if show e == show r then [] else rpath r (n - 1)
-    where r = rstep e False
+rpath e n = e : case rstep e False of
+    Just e' -> rpath e' (n - 1)
+    Nothing -> [] -- if there is no reduction we stop the path
 
+
+-- main function for printing the path of reduction
+-- current limit of steps is 30, but it can be changed by changing the second argument of rpath
 printPath :: Expr -> IO ()
-
 printPath e = putStrLn $ unlines $ map prettyExpr (rpath e 30)
 
-printPath' :: Expr -> IO ()
-
-
+-- the same as rpath but with defleating before reduction
 rpath' :: Expr -> Integer -> [Expr]
 rpath' e 0 = [e]
-rpath' e n = e : if show e == show r then [] else rpath' r (n - 1)
-    where r = rstep e True
+rpath' e n = e : case rstep e True of
+    Just e' -> rpath' e' (n - 1)
+    Nothing -> []
 
+-- the same as printPath but with defleating before reduction
+printPath' :: Expr -> IO ()
 printPath' e = putStrLn $ unlines $ map prettyExpr (rpath' e 30)
